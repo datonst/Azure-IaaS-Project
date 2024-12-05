@@ -66,15 +66,15 @@ resource "azurerm_linux_virtual_machine" "vm" {
   name                = "myVM${count.index+1}"
   resource_group_name = var.resource_group_name
   location            = var.location
-  size                = "Standard_F2"
+  size                = "B1s"
   admin_username      = "adminuser"
   network_interface_ids = [
-    azurerm_network_interface.example.id,
+    azurerm_network_interface.nic[count.index].id,
   ]
 
   admin_ssh_key {
     username   = "adminuser"
-    public_key = file("~/.ssh/id_rsa.pub")
+    public_key = file("~/.ssh/my-key.pub")
   }
 
   os_disk {
