@@ -19,35 +19,6 @@ variable "resource_group_name" {
   type        = string
 }
 
-variable "nat_subnet_name" {
-  description = "Name of NAT subnet"
-  type        = string
-}
-
-variable "nat_subnet_cidrs" {
-  description = "CIDR block for NAT subnet"
-  type        = list(string)
-}
-
-# variable "nat_private_subnet_tags" {
-#   description = "Tags for NAT subnet"
-#   type        = map(string)
-# }
-
-variable "db_subnet_name" {
-  description = "Name of DB subnet"
-  type        = string
-}
-
-variable "db_subnet_cidrs" {
-  description = "CIDR block for DB subnet"
-  type        = list(string)
-}
-
-# variable "db_private_subnet_tags" {
-#   description = "Tags for DB subnet"
-#   type        = map(string)
-# }
 
 variable "vnet_tags" {
   description = "Tags for VNet"
@@ -55,10 +26,19 @@ variable "vnet_tags" {
 }
 
 
-variable "nat_gateway_id" {
-  description = "ID of NAT Gateway"
-  type        = string
+
+variable "subnets" {
+  description = "List of subnets"
+  type = list(object({
+    name                        = string
+    address_prefixes            = list(string)
+    default_outbound_access_enabled = bool
+    nat_gateway = optional(object({
+      id = string
+    }))
+    # Optional tags can be added
+    tags = optional(map(string))
+  }))
+  default = []
 }
-
-
 

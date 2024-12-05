@@ -9,3 +9,4 @@ output "resource_id" {
 output "subnets" {
     value = module.vnet.subnets
 }
+

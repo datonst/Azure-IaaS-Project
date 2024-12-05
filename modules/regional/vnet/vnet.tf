@@ -6,22 +6,12 @@ module "vnet" {
   name                = var.vnet_name
 
   resource_group_name = var.resource_group_name
-  subnets = {
-    "nat_public_subnet" = {
-      name             = var.nat_subnet_name
-      address_prefixes = var.nat_subnet_cidrs
-      default_outbound_access_enabled = true
-      nat_gateway = {
-        id = var.nat_gateway_id
-      }
-      # tags = var.nat_private_subnet_tags
-    }
-    "db_private_subnet" = {
-      name             = var.db_subnet_name
-      address_prefixes =  var.db_subnet_cidrs
-      default_outbound_access_enabled = false
-      # tags = var.db_private_subnet_tags
-    } 
-  }
+  subnets = { for subnet in var.subnets : subnet.name => {
+    name                        = subnet.name
+    address_prefixes            = subnet.address_prefixes
+    default_outbound_access_enabled = subnet.default_outbound_access_enabled
+    nat_gateway = subnet.nat_gateway != null ? subnet.nat_gateway : null
+    # tags = subnet.tags
+  }}
 
 }
