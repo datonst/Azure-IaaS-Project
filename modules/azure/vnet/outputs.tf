@@ -10,3 +10,6 @@ output "subnets" {
     value = module.vnet.subnets
 }
 
+output "cidr_block" {
+    value = var.vnet_cidr
+}
