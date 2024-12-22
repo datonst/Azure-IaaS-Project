@@ -18,3 +18,18 @@ variable "number_of_vm" {
   type        = number
   default     = 1
 }
+
+variable "public_key" {
+  description = "Public key for SSH access"
+  type        = string
+}
+variable "name" {
+  description = "Name of the VM"
+  type        = string 
+}
+
+variable "associate_public_ip_address" {
+  description = "Associate public IP address with the VM"
+  type        = bool
+  default     = false 
+}

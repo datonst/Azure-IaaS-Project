@@ -1,15 +1,28 @@
+resource "azurerm_public_ip" "my_terraform_public_ip" {
+  count               = var.associate_public_ip_address ? 1 : 0
+  name                = "${var.name}-public-ip"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  allocation_method   = "Static"
+  lifecycle {
+      create_before_destroy = true
+  }
+}
+
 resource "azurerm_network_interface" "nic" {
   count               = var.number_of_vm
-  name                = "nic-${count.index+1}"
+  name                = "nic-${var.name}-${count.index+1}"
   location            = var.location
   resource_group_name = var.resource_group_name
 
   ip_configuration {
-    name                          = "nic-ipconfig-${count.index+1}"
+    name                          = "nic-ipconfig-${var.name}-${count.index+1}"
     subnet_id                     = var.subnet_id
     private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = var.associate_public_ip_address ? azurerm_public_ip.my_terraform_public_ip[count.index].id : null
   }
 }
+
 
 # resource "random_password" "password" {
 #   length  = 16
@@ -60,21 +73,29 @@ resource "azurerm_network_interface" "nic" {
 #     }
 # SETTINGS
 # }
+resource "azurerm_network_security_group" "nsg-vm" {
+  name                = "nsg-vm-t-${var.name}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+}
 
 resource "azurerm_linux_virtual_machine" "vm" {
   count               = var.number_of_vm
-  name                = "myVM${count.index+1}"
+  name                = "${var.name}-${count.index+1}"
   resource_group_name = var.resource_group_name
   location            = var.location
   size                = "Standard_B1s"
   admin_username      = "adminuser"
+  admin_password      = "Admin+123456"
+  disable_password_authentication = false
   network_interface_ids = [
     azurerm_network_interface.nic[count.index].id,
   ]
 
   admin_ssh_key {
     username   = "adminuser"
-    public_key = file("~/.ssh/my-key.pub")
+    # public_key = file("~/.ssh/my-key.pub")
+    public_key = var.public_key
   }
 
   os_disk {
@@ -89,3 +110,40 @@ resource "azurerm_linux_virtual_machine" "vm" {
     version   = "latest"
   }
 }
+
+resource "azurerm_network_security_rule" "nsg-ssh-vm-rule" {
+  name                        = "ssh"
+  description                 = "Allow SSH."
+  priority                    = 100
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "22"
+  source_address_prefix       = "*" #"${data.http.source_ip.response_body}/32"
+  destination_address_prefix  = "*"
+  resource_group_name         = var.resource_group_name
+  network_security_group_name = azurerm_network_security_group.nsg-vm.name
+}
+
+resource "azurerm_network_security_rule" "nsg-aws-vm-rule" {
+  name                        = "icmp"
+  description                 = "Allow ICMP for AWS VPC resources"
+  priority                    = 101
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Icmp"
+  source_port_range           = "*"
+  destination_port_range      = "*"
+  source_address_prefix       =  "*" #aws_vpc.aws-vpc.cidr_block
+  destination_address_prefix  = "*"
+  resource_group_name         = var.resource_group_name
+  network_security_group_name = azurerm_network_security_group.nsg-vm.name
+}
+
+resource "azurerm_network_interface_security_group_association" "vm-sg-asoc" {
+  count                     = var.number_of_vm
+  network_interface_id      = azurerm_network_interface.nic[count.index].id
+  network_security_group_id = azurerm_network_security_group.nsg-vm.id
+}
+

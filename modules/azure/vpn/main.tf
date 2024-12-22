@@ -1,11 +1,3 @@
-resource "azurerm_public_ip" "VNetGWpip" {
-  name                = "pip-vpn-${var.prefix}"
-  location            = var.resource_group_location
-  resource_group_name = var.resource_group_name
-  allocation_method = "Static"
-  sku               = "Standard"
-}
-
 # Create VPN Gateway and attach gateway to VNET
 resource "azurerm_virtual_network_gateway" "VNetGW" {
   name                = "vpn-${var.prefix}"
@@ -21,7 +13,7 @@ resource "azurerm_virtual_network_gateway" "VNetGW" {
 
   ip_configuration {
     name                          = "vnetGatewayConfig"
-    public_ip_address_id          = azurerm_public_ip.VNetGWpip.id
+    public_ip_address_id          = var.VNetGWpip_id
     private_ip_address_allocation = "Dynamic"
     subnet_id                     = var.subnet_id
   }
@@ -33,7 +25,7 @@ resource "azurerm_local_network_gateway" "AWSTunnel1ToInstance0" {
   location            = var.resource_group_location
   resource_group_name = var.resource_group_name
   gateway_address     = var.local_gateway_address
-  address_space       = [var.vnet_cidr]
+  address_space       = var.destination_cidr_block
 }
 # 
 resource "azurerm_local_network_gateway" "AWSTunnel2ToInstance0" {
@@ -41,7 +33,7 @@ resource "azurerm_local_network_gateway" "AWSTunnel2ToInstance0" {
   location            = var.resource_group_location
   resource_group_name = var.resource_group_name
   gateway_address     = var.local_standby_gateway_address
-  address_space       = [var.vnet_cidr]
+  address_space       = var.destination_cidr_block
 }
 
 # Create Site-2-Site VPN Connection between VNGW (Azure) and LNGW (AWS)

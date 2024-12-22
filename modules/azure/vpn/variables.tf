@@ -36,9 +36,9 @@ variable "local_standby_gateway_address" {
   type        = string
 }
 
-variable "vnet_cidr" {
-  description = "VNET CIDR"
-  type        = string
+variable "destination_cidr_block" {
+  description = "destination CIDR"
+  type        = list(string)
 }
 
 variable "connection_shared_key" {
@@ -48,5 +48,10 @@ variable "connection_shared_key" {
 
 variable "connection_standby_shared_key" {
   description = "Connection Standby Shared Key"
+  type        = string
+}
+
+variable "VNetGWpip_id" {
+  description = "VNetGWpip ID"
   type        = string
 }
