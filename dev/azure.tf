@@ -71,7 +71,7 @@ module "frontend_vm" {
   resource_group_name = module.web_resource_group.name
   number_of_vm        = 1
   public_key = tls_private_key.key_pair.public_key_openssh
-  associate_public_ip_address = false
+  associate_public_ip_address = true
 }
 
 
@@ -124,8 +124,9 @@ resource "azurerm_virtual_network_peering" "hub-to-web" {
   virtual_network_name      = module.hub_vnet.name
   remote_virtual_network_id = module.web_vnet.resource_id
   allow_virtual_network_access = true
-  allow_forwarded_traffic      = true
   allow_gateway_transit = true
+
+  allow_forwarded_traffic = true
 }
 
 resource "azurerm_virtual_network_peering" "web-to-hub" {
@@ -134,9 +135,33 @@ resource "azurerm_virtual_network_peering" "web-to-hub" {
   virtual_network_name      = module.web_vnet.name
   remote_virtual_network_id = module.hub_vnet.resource_id
   allow_virtual_network_access = true
-  allow_forwarded_traffic      = true
   allow_gateway_transit = true
+
+  use_remote_gateways = true
 }
+
+# # Route table for vnet2
+# resource "azurerm_route_table" "rt_web" {
+#   name                = "rt-web"
+#   location            = local.azure_region
+#   resource_group_name = module.web_resource_group.name
+# }
+
+# # Route for on-premise traffic
+# resource "azurerm_route" "aws_route" {
+#   name                   = "AwsRoute"
+#   resource_group_name    = module.web_resource_group.name
+#   route_table_name       = azurerm_route_table.rt_web.name
+#   address_prefix         =  module.aws_vpc.vpc_cidr_block # Example: "10.0.0.0/16"
+#   next_hop_type         = "VirtualNetworkGateway"
+# }
+
+# Associate route table with vnet2 subnet
+# resource "azurerm_subnet_route_table_association" "web_rt_association" {
+#   subnet_id      = module.web_vnet.subnets["${local.prefix}-public-subnet"].resource_id
+#   route_table_id = azurerm_route_table.rt_web.id
+# }
+
 ################ CONNECT AZURE TO AWS ####################
 
 resource "azurerm_public_ip" "VNetGWpip" {
@@ -166,16 +191,16 @@ module "azure_vpn" {
 }
 
 
-module "hub-vm" {
-  source              = "../modules/azure/vm"
-  name                = "hub-vm"
-  subnet_id           = module.hub_vnet.subnets["test-subnet"].resource_id
-  location            = local.azure_region
-  resource_group_name = module.hub_resource_group.name
-  number_of_vm        = 1
-  public_key = tls_private_key.key_pair.public_key_openssh
-  associate_public_ip_address = true
-}
+# module "hub-vm" {
+#   source              = "../modules/azure/vm"
+#   name                = "hub-vm"
+#   subnet_id           = module.hub_vnet.subnets["test-subnet"].resource_id
+#   location            = local.azure_region
+#   resource_group_name = module.hub_resource_group.name
+#   number_of_vm        = 1
+#   public_key = tls_private_key.key_pair.public_key_openssh
+#   associate_public_ip_address = true
+# }
 
 
 ######################### VM AZURE ############################
