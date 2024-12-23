@@ -66,7 +66,7 @@ module "ec2-private" {
 # #!/bin/bash
 # wget https://git.io/vpn -O openvpn-install.sh && bash openvpn-install.sh
 # EOF
-  subnet_id                   = module.aws_vpc.subnet_id
+  subnet_id                   = module.aws_vpc.subnet_ids[0]
   vpc_id                      = module.aws_vpc.vpc_id
   associate_public_ip_address = true
   vpc_security_group_ids      = [module.security_group_ec2.security_group_id]
