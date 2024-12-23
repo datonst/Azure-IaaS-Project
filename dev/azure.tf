@@ -1,4 +1,4 @@
-module "web_resource_group" {
+module "spoke_resource_group" {
   source   = "../modules/azure/resource-group"
   location = local.azure_region
   name     = "${local.prefix}-web-rg"
@@ -11,18 +11,18 @@ module "nat_gateway" {
   source                  = "../modules/azure/nat-gateway"
   nat_gateway_name        = "${local.prefix}-nat"
   location                = local.azure_region
-  resource_group_name     = module.web_resource_group.name
+  resource_group_name     = module.spoke_resource_group.name
   sku_name                = "Standard"
   idle_timeout_in_minutes = 10
 }
 
-module "web_vnet" {
+module "spoke_vnet" {
   source = "../modules/azure/vnet"
 
   location            = local.azure_region
   vnet_name           = "${local.prefix}-vnet"
   vnet_cidr           = ["172.17.0.0/16"]
-  resource_group_name = module.web_resource_group.name
+  resource_group_name = module.spoke_resource_group.name
   vnet_tags           = local.tags
 
   subnets = [
@@ -53,7 +53,7 @@ module "web_vnet" {
 #   location            = local.azure_region
 #   appgw_name            = "${local.prefix}-appgw"
 #   resource_group_name = module.resource_group.name
-#   subnet_id           = module.web_vnet.subnets["${local.prefix}-nat-subnet"].resource_id
+#   subnet_id           = module.spoke_vnet.subnets["${local.prefix}-nat-subnet"].resource_id
 #   frontend_port       = 80
 #   backend_port        = 80
 #   sku_name = "Standard_v2"
@@ -66,9 +66,9 @@ module "web_vnet" {
 module "frontend_vm" {
   name = "frontend"
   source              = "../modules/azure/vm"
-  subnet_id           = module.web_vnet.subnets["${local.prefix}-public-subnet"].resource_id
+  subnet_id           = module.spoke_vnet.subnets["${local.prefix}-public-subnet"].resource_id
   location            = local.azure_region
-  resource_group_name = module.web_resource_group.name
+  resource_group_name = module.spoke_resource_group.name
   number_of_vm        = 1
   public_key = tls_private_key.key_pair.public_key_openssh
   associate_public_ip_address = true
@@ -122,7 +122,7 @@ resource "azurerm_virtual_network_peering" "hub-to-web" {
   name                      = "peerhubtoweb"
   resource_group_name       = module.hub_resource_group.name
   virtual_network_name      = module.hub_vnet.name
-  remote_virtual_network_id = module.web_vnet.resource_id
+  remote_virtual_network_id = module.spoke_vnet.resource_id
   allow_virtual_network_access = true
   allow_gateway_transit = true
 
@@ -131,8 +131,8 @@ resource "azurerm_virtual_network_peering" "hub-to-web" {
 
 resource "azurerm_virtual_network_peering" "web-to-hub" {
   name                      = "perwebtohub"
-  resource_group_name       = module.web_resource_group.name
-  virtual_network_name      = module.web_vnet.name
+  resource_group_name       = module.spoke_resource_group.name
+  virtual_network_name      = module.spoke_vnet.name
   remote_virtual_network_id = module.hub_vnet.resource_id
   allow_virtual_network_access = true
   allow_gateway_transit = true
@@ -144,21 +144,21 @@ resource "azurerm_virtual_network_peering" "web-to-hub" {
 # resource "azurerm_route_table" "rt_web" {
 #   name                = "rt-web"
 #   location            = local.azure_region
-#   resource_group_name = module.web_resource_group.name
+#   resource_group_name = module.spoke_resource_group.name
 # }
 
 # # Route for on-premise traffic
 # resource "azurerm_route" "aws_route" {
 #   name                   = "AwsRoute"
-#   resource_group_name    = module.web_resource_group.name
+#   resource_group_name    = module.spoke_resource_group.name
 #   route_table_name       = azurerm_route_table.rt_web.name
 #   address_prefix         =  module.aws_vpc.vpc_cidr_block # Example: "10.0.0.0/16"
 #   next_hop_type         = "VirtualNetworkGateway"
 # }
 
 # Associate route table with vnet2 subnet
-# resource "azurerm_subnet_route_table_association" "web_rt_association" {
-#   subnet_id      = module.web_vnet.subnets["${local.prefix}-public-subnet"].resource_id
+# resource "azurerm_subnet_route_table_association" "spoke_rt_association" {
+#   subnet_id      = module.spoke_vnet.subnets["${local.prefix}-public-subnet"].resource_id
 #   route_table_id = azurerm_route_table.rt_web.id
 # }
 
