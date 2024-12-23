@@ -78,3 +78,23 @@ resource "azurerm_public_ip" "backend_ip" {
   location            = azurerm_resource_group.web_project.location
   allocation_method   = "Static"
 }
+
+
+module "avm-res-network-loadbalancer" {
+  source  = "Azure/avm-res-network-loadbalancer/azurerm"
+  version = "0.3.2"
+  location = "East Asia"
+  frontend_ip_configurations = {
+    # frontend_configuration_1 = {
+    #     frontend_private_ip_address_version = "IPv4"
+    #     frontend_private_ip_address_allocation = "Dynamic"
+    # }
+  }
+#   backend_address_pool_addresses = {
+#     address1 = {
+        
+#     }
+#   }
+  resource_group_name = azurerm_resource_group.web_project.name
+  name = "lb"
+}
