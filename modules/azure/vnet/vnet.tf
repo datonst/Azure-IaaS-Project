@@ -13,5 +13,5 @@ module "vnet" {
     nat_gateway = subnet.nat_gateway != null ? subnet.nat_gateway : null
     # tags = subnet.tags
   }}
-
+  
 }
