@@ -33,9 +33,3 @@ variable "associate_public_ip_address" {
   type        = bool
   default     = false 
 }
-
-variable "custom_data" {
-  description = "Custom data for the VM"
-  type        = string
-  default     = null
-}

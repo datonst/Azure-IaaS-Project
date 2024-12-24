@@ -17,7 +17,7 @@ locals {
   # đây là những prefix mà aws cho phép kết nối qua route table
   aws_destination_cidr_block = ["192.168.3.0/24","172.17.0.0/16"]
 # đây là những prefix mà azure cho phép kết nối qua Local Network Gateway
-  azure_destination_cidr_block= [module.aws_vpc.vpc_cidr_block]
+  azure_destination_cidr_block= ["10.10.0.0/16"]
   
   
 }
