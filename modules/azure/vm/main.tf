@@ -1,3 +1,9 @@
+resource "azurerm_network_security_group" "nsg-vm" {
+  name                = "nsg-vm-t-${var.name}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+}
+
 resource "azurerm_public_ip" "my_terraform_public_ip" {
   count               = var.associate_public_ip_address ? 1 : 0
   name                = "${var.name}-public-ip"
@@ -87,11 +93,7 @@ resource "azurerm_network_security_rule" "allow-internet-outbound" {
 #     }
 # SETTINGS
 # }
-resource "azurerm_network_security_group" "nsg-vm" {
-  name                = "nsg-vm-t-${var.name}"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-}
+
 
 resource "azurerm_linux_virtual_machine" "vm" {
   count               = var.number_of_vm
@@ -125,6 +127,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
   }
 
   custom_data = var.custom_data != null ? var.custom_data : null
+  depends_on = [ azurerm_network_interface.nic ]
 }
 
 resource "azurerm_network_security_rule" "nsg-ssh-vm-rule" {
@@ -161,6 +164,5 @@ resource "azurerm_network_interface_security_group_association" "vm-sg-asoc" {
   count                     = var.number_of_vm
   network_interface_id      = azurerm_network_interface.nic[count.index].id
   network_security_group_id = azurerm_network_security_group.nsg-vm.id
-  depends_on = [ azurerm_network_interface.nic ]
 }
 
