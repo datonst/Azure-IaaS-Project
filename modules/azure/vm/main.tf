@@ -123,6 +123,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
     sku       = "22_04-lts"
     version   = "latest"
   }
+
   custom_data = var.custom_data != null ? var.custom_data : null
 }
 
@@ -160,5 +161,6 @@ resource "azurerm_network_interface_security_group_association" "vm-sg-asoc" {
   count                     = var.number_of_vm
   network_interface_id      = azurerm_network_interface.nic[count.index].id
   network_security_group_id = azurerm_network_security_group.nsg-vm.id
+  depends_on = [ azurerm_network_interface.nic ]
 }
 

@@ -1,16 +1,20 @@
 module "spoke_resource_group" {
   source   = "../modules/azure/resource-group"
-  location = local.azure_region[1]
+  location = local.azure_spoke_region
   name     = "${local.prefix}-spoke-rg"
 }
 
-
+module "hub_resource_group" {
+  source   = "../modules/azure/resource-group"
+  location = local.azure_hub_region
+  name     = "${local.prefix}-hub-rg"
+}
 
 
 # module "nat_gateway" {
 #   source                  = "../modules/azure/nat-gateway"
 #   nat_gateway_name        = "${local.prefix}-nat"
-#   location                = local.azure_region[0]
+#   location                = module.spoke_resource_group.location
 #   resource_group_name     = module.spoke_resource_group.name
 #   sku_name                = "Standard"
 #   idle_timeout_in_minutes = 10
@@ -45,12 +49,13 @@ module "spoke_vnet" {
       default_outbound_access_enabled = true
     }
   ]
+  depends_on = [ module.spoke_resource_group ]
 }
 
 # module "appgw" {
 #   source = "../modules/regional/application-gateway"
 
-#   location            = local.azure_region[0]
+#   location            = module.spoke_resource_group.location
 #   appgw_name            = "${local.prefix}-appgw"
 #   resource_group_name = module.resource_group.name
 #   subnet_id           = module.spoke_vnet.subnets["${local.prefix}-nat-subnet"].resource_id
@@ -74,11 +79,7 @@ module "spoke_vnet" {
 
 
 ##################### HUB AZURE ############################
-module "hub_resource_group" {
-  source   = "../modules/azure/resource-group"
-  location = local.azure_region[0]
-  name     = "${local.prefix}-hub-rg"
-}
+
 
 module "hub_vnet" {
   source = "../modules/azure/vnet"
@@ -106,6 +107,7 @@ module "hub_vnet" {
       default_outbound_access_enabled = true
     }
   ]
+  depends_on = [ module.hub_resource_group ]
 }
 
 # resource "azurerm_virtual_network_peering" "hub-to-web" {
@@ -135,7 +137,7 @@ module "hub_vnet" {
 # # Route table for vnet2
 # resource "azurerm_route_table" "rt_web" {
 #   name                = "rt-web"
-#   location            = local.azure_region
+#   location            = module.spoke_resource_group.location
 #   resource_group_name = module.spoke_resource_group.name
 # }
 
@@ -205,12 +207,13 @@ module "lb" {
       ip_configuration_name   = module.frontend_vm.network_interfaces[0].ip_configuration[0].name
     }
   ]
+  depends_on = [ module.spoke_resource_group ]
 }
 
 
 # module "azure_firewall" {
 #   source = "../modules/azure/firewall"
-#   location = module.hub_resource_group.location
+#   location = module.spoke_resource_group.location
 #   resource_group_name =  module.hub_resource_group.name
 #   subnet_id = module.hub_vnet.subnets["AzureFirewallSubnet"].resource_id
 #   frontend_ip_configuration = module.loadbalancer.azurerm_lb.frontend_ip_configuration
@@ -225,7 +228,7 @@ module "lb" {
 #   source              = "../modules/azure/vm"
 #   name                = "hub-vm"
 #   subnet_id           = module.hub_vnet.subnets["test-subnet"].resource_id
-#   location            = local.azure_region[1]
+#   location            = module.spoke_resource_group.location
 #   resource_group_name = module.hub_resource_group.name
 #   number_of_vm        = 1
 #   public_key = tls_private_key.key_pair.public_key_openssh
@@ -244,6 +247,7 @@ module "backend_vm" {
   number_of_vm        = 1
   public_key = tls_private_key.key_pair.public_key_openssh
   associate_public_ip_address = false
+  depends_on = [ module.spoke_resource_group ]
 }
 
 module "frontend_vm" {
@@ -260,6 +264,7 @@ module "frontend_vm" {
 echo "LOAD_BALANCER_IP=${module.internal_lb.ip_address}" >> /etc/environment
 EOF
 )
+  depends_on = [ module.spoke_resource_group ]
 }
 
 
@@ -275,6 +280,7 @@ resource "azurerm_network_security_rule" "nsg-http-for-frontend" {
   destination_address_prefix  = "*"
   resource_group_name         = module.spoke_resource_group.name
   network_security_group_name = module.frontend_vm.network_security_group_name
+  depends_on = [ module.spoke_resource_group, module.frontend_vm ]
 }
 
 
@@ -290,6 +296,7 @@ resource "azurerm_network_security_rule" "allow-frontend-port" {
   destination_address_prefix  = "*"
   resource_group_name         = module.spoke_resource_group.name
   network_security_group_name = module.backend_vm.network_security_group_name
+  depends_on = [ module.spoke_resource_group, module.backend_vm ]
 }
 
 module "internal_lb" {
@@ -312,6 +319,7 @@ module "internal_lb" {
       ip_configuration_name   = module.backend_vm.network_interfaces[0].ip_configuration[0].name
     }
   ]
+  depends_on = [ module.spoke_resource_group ]
 }
 
 
