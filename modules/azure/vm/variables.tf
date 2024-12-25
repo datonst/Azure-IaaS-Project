@@ -34,6 +34,12 @@ variable "associate_public_ip_address" {
   default     = false 
 }
 
+variable "proximity_placement_group_id" {
+  description = "ID of the proximity placement group"
+  type        = string
+  default     = null
+}
+
 variable "custom_data" {
   description = "Custom data for the VM"
   type        = string

@@ -23,9 +23,6 @@ variable "subnet_id" {
   description = "ID of the subnet."
 }
 
-variable "frontend_ip_configuration" {
-  description = "Frontend IP configuration."
-}
 
 variable "lb_public_ip" {
   description = "Public IP address of the Load Balancer."

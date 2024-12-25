@@ -1,4 +1,5 @@
 
+############### RESOURCE GROUPS ####################
 module "hub_resource_group" {
   source   = "../modules/azure/resource-group"
   location = local.azure_hub_region
@@ -10,18 +11,16 @@ module "spoke_resource_group" {
   location = local.azure_spoke_region
   name     = "${local.prefix}-spoke-rg"
 }
+################ Proximity Placement Group ############################
+resource "azurerm_proximity_placement_group" "proximity_placement_group" {
+  name                = "${local.prefix}-PlacementGroup"
+  location            = local.azure_spoke_region
+  resource_group_name = module.spoke_resource_group.name
+  tags = local.tags
+}
 
 
-
-# module "nat_gateway" {
-#   source                  = "../modules/azure/nat-gateway"
-#   nat_gateway_name        = "${local.prefix}-nat"
-#   location                = local.azure_spoke_region
-#   resource_group_name     = module.spoke_resource_group.name
-#   sku_name                = "Standard"
-#   idle_timeout_in_minutes = 10
-# }
-
+################### VNETS ####################
 module "hub_vnet" {
   source = "../modules/azure/vnet"
 
@@ -45,6 +44,11 @@ module "hub_vnet" {
     {
       name                            = "test-subnet"
       address_prefixes                = ["192.168.3.0/24"]
+      default_outbound_access_enabled = true
+    },
+    {
+      name                            = "AzureBastionSubnet"
+      address_prefixes                = ["192.168.4.0/26"]
       default_outbound_access_enabled = true
     }
   ]
@@ -82,129 +86,57 @@ module "spoke_vnet" {
 }
 
 
+##########################CONNECT AZURE TO AWS ####################
 
-# module "appgw" {
-#   source = "../modules/regional/application-gateway"
+resource "azurerm_public_ip" "VNetGWpip" {
+  name                = "pip-vpn-${local.prefix}"
+  location            =  local.azure_hub_region
+  resource_group_name = module.hub_resource_group.name
+  allocation_method = "Static"
+  sku               = "Standard"
+}
 
-#   location            = local.azure_spoke_region
-#   appgw_name            = "${local.prefix}-appgw"
-#   resource_group_name = module.resource_group.name
-#   subnet_id           = module.spoke_vnet.subnets["${local.prefix}-nat-subnet"].resource_id
-#   frontend_port       = 80
-#   backend_port        = 80
-#   sku_name = "Standard_v2"
+module "azure_vpn" {
+  source                  = "../modules/azure/vpn"
+  prefix                  = local.prefix
+  azure_vpn_gateway_sku   = "VpnGw1"
+  resource_group_name     = module.hub_resource_group.name
+  resource_group_location = local.azure_hub_region
 
-# }
+  VNetGWpip_id = azurerm_public_ip.VNetGWpip.id
+  subnet_id = module.hub_vnet.subnets["GatewaySubnet"].resource_id
 
+  destination_cidr_block        = local.azure_destination_cidr_block
+  local_gateway_address         = module.aws_vpn.tunnel1_address
+  local_standby_gateway_address = module.aws_vpn.tunnel2_address
 
+  connection_shared_key         = random_password.AWSTunnel1ToInstance0-PSK.result
+  connection_standby_shared_key = random_password.AWSTunnel2ToInstance0-PSK.result
+}
 
+##################### VNET PEERING ############################
 
+resource "azurerm_virtual_network_peering" "hub-to-web" {
+  name                      = "peerhubtoweb"
+  resource_group_name       = module.hub_resource_group.name
+  virtual_network_name      = module.hub_vnet.name
+  remote_virtual_network_id = module.spoke_vnet.resource_id
+  allow_virtual_network_access = true
+  allow_gateway_transit = true
 
+  allow_forwarded_traffic = true
+}
 
-# resource "azurerm_network_interface_application_gateway_backend_address_pool_association" "nic-assoc" {
-#   count                   = 2
-#   network_interface_id    = azurerm_network_interface.nic[count.index].id
-#   ip_configuration_name   = "nic-ipconfig-${count.index+1}"
-#   backend_address_pool_id = var.backend_address_pool_id
-# }
+resource "azurerm_virtual_network_peering" "web-to-hub" {
+  name                      = "perwebtohub"
+  resource_group_name       = module.spoke_resource_group.name
+  virtual_network_name      = module.spoke_vnet.name
+  remote_virtual_network_id = module.hub_vnet.resource_id
+  allow_virtual_network_access = true
+  allow_gateway_transit = true
 
-
-##################### HUB AZURE ############################
-
-
-
-# resource "azurerm_virtual_network_peering" "hub-to-web" {
-#   name                      = "peerhubtoweb"
-#   resource_group_name       = module.hub_resource_group.name
-#   virtual_network_name      = module.hub_vnet.name
-#   remote_virtual_network_id = module.spoke_vnet.resource_id
-#   allow_virtual_network_access = true
-#   allow_gateway_transit = true
-
-#   allow_forwarded_traffic = true
-# }
-
-# resource "azurerm_virtual_network_peering" "web-to-hub" {
-#   name                      = "perwebtohub"
-#   resource_group_name       = module.spoke_resource_group.name
-#   virtual_network_name      = module.spoke_vnet.name
-#   remote_virtual_network_id = module.hub_vnet.resource_id
-#   allow_virtual_network_access = true
-#   allow_gateway_transit = true
-
-#   use_remote_gateways = true
-# }
-
-
-############################# delete that #####################33333
-# # Route table for vnet2
-# resource "azurerm_route_table" "rt_web" {
-#   name                = "rt-web"
-#   location            = local.azure_spoke_region
-#   resource_group_name = module.spoke_resource_group.name
-# }
-
-# # Route for on-premise traffic
-# resource "azurerm_route" "aws_route" {
-#   name                   = "AwsRoute"
-#   resource_group_name    = module.spoke_resource_group.name
-#   route_table_name       = azurerm_route_table.rt_web.name
-#   address_prefix         =  module.aws_vpc.vpc_cidr_block # Example: "10.0.0.0/16"
-#   next_hop_type         = "VirtualNetworkGateway"
-# }
-
-# Associate route table with vnet2 subnet
-
-
-# resource "azurerm_subnet_route_table_association" "spoke_rt_association" {
-#   subnet_id      = module.spoke_vnet.subnets["${local.prefix}-public-subnet"].resource_id
-#   route_table_id = azurerm_route_table.rt_web.id
-# }
-
-####################################################CONNECT AZURE TO AWS ####################
-
-# resource "azurerm_public_ip" "VNetGWpip" {
-#   name                = "pip-vpn-${local.prefix}"
-#   location            =  local.azure_hub_region
-#   resource_group_name = module.hub_resource_group.name
-#   allocation_method = "Static"
-#   sku               = "Standard"
-# }
-
-# module "azure_vpn" {
-#   source                  = "../modules/azure/vpn"
-#   prefix                  = local.prefix
-#   azure_vpn_gateway_sku   = "VpnGw1"
-#   resource_group_name     = module.hub_resource_group.name
-#   resource_group_location = local.azure_hub_region
-
-#   VNetGWpip_id = azurerm_public_ip.VNetGWpip.id
-#   subnet_id = module.hub_vnet.subnets["GatewaySubnet"].resource_id
-
-#   destination_cidr_block        = local.azure_destination_cidr_block
-#   local_gateway_address         = module.aws_vpn.tunnel1_address
-#   local_standby_gateway_address = module.aws_vpn.tunnel2_address
-
-#   connection_shared_key         = random_password.AWSTunnel1ToInstance0-PSK.result
-#   connection_standby_shared_key = random_password.AWSTunnel2ToInstance0-PSK.result
-# }
-
-
-
-
-
-######################## delete that ############################
-# module "hub-vm" {
-#   source              = "../modules/azure/vm"
-#   name                = "hub-vm"
-#   subnet_id           = module.hub_vnet.subnets["test-subnet"].resource_id
-#   location            = local.azure_spoke_region
-#   resource_group_name = module.hub_resource_group.name
-#   number_of_vm        = 1
-#   public_key = tls_private_key.key_pair.public_key_openssh
-#   associate_public_ip_address = true
-# }
-
+  use_remote_gateways = true
+}
 
 ######################### VM AZURE ############################
 
@@ -214,6 +146,7 @@ module "backend_vm" {
   subnet_id           = module.spoke_vnet.subnets["${local.prefix}-private-subnet"].resource_id
   location            = local.azure_spoke_region
   resource_group_name = module.spoke_resource_group.name
+  proximity_placement_group_id = azurerm_proximity_placement_group.proximity_placement_group.id
   number_of_vm        = 1
   public_key = tls_private_key.key_pair.public_key_openssh
   associate_public_ip_address = false
@@ -225,9 +158,10 @@ module "frontend_vm" {
   subnet_id           = module.spoke_vnet.subnets["${local.prefix}-public-subnet"].resource_id
   location            = local.azure_spoke_region
   resource_group_name = module.spoke_resource_group.name
+  proximity_placement_group_id = azurerm_proximity_placement_group.proximity_placement_group.id
   number_of_vm        = 1
   public_key = tls_private_key.key_pair.public_key_openssh
-  associate_public_ip_address = true
+  associate_public_ip_address = false
   custom_data = base64encode(<<EOF
 #!/bin/bash
 echo "LOAD_BALANCER_IP=${module.internal_lb.ip_address}" >> /etc/environment
@@ -235,6 +169,11 @@ EOF
 )
 }
 
+
+
+
+
+######################## LOAD BALANCER ############################
 
 resource "azurerm_network_security_rule" "nsg-http-for-frontend" {
   name                        = "nsg-http-for-frontend"
@@ -264,6 +203,8 @@ resource "azurerm_network_security_rule" "allow-frontend-port" {
   resource_group_name         = module.spoke_resource_group.name
   network_security_group_name = module.backend_vm.network_security_group_name
 }
+
+
 
 module "internal_lb" {
   name = "internal"
@@ -311,14 +252,32 @@ module "lb" {
 }
 
 
-# module "azure_firewall" {
-#   source = "../modules/azure/firewall"
-#   location = local.azure_spoke_region
-#   resource_group_name =  module.hub_resource_group.name
-#   subnet_id = module.hub_vnet.subnets["AzureFirewallSubnet"].resource_id
-#   frontend_ip_configuration = module.loadbalancer.azurerm_lb.frontend_ip_configuration
-#   lb_public_ip = module.loadbalancer.azurerm_public_ip.frontend_configuration_1.ip_address
-# }
+######################### FIREWALL ############################
+module "azure_firewall" {
+  source = "../modules/azure/firewall"
+  location = local.azure_hub_region
+  resource_group_name =  module.hub_resource_group.name
+  subnet_id = module.hub_vnet.subnets["AzureFirewallSubnet"].resource_id
+  lb_public_ip = module.lb.ip_address
+}
 
+######################### BASTION ############################
+resource "azurerm_public_ip" "BastionPip" {
+  name                = "${local.prefix}-bastion-pip"
+  location            =  local.azure_hub_region
+  resource_group_name = module.hub_resource_group.name
+  allocation_method = "Static"
+  sku               = "Standard"
+}
 
+resource "azurerm_bastion_host" "bastion" {
+  name                = "${local.prefix}-bastion"
+  location            = local.azure_hub_region
+  resource_group_name = module.hub_resource_group.name
 
+  ip_configuration {
+    name                 = "bastion-ip-configuration"
+    subnet_id            = module.hub_vnet.subnets["AzureBastionSubnet"].resource_id
+    public_ip_address_id = azurerm_public_ip.BastionPip.id
+  }
+}

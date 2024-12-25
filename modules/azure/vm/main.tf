@@ -41,6 +41,7 @@ resource "azurerm_network_security_rule" "allow-internet-outbound" {
   destination_address_prefix  = "Internet"
   resource_group_name         = var.resource_group_name
   network_security_group_name = azurerm_network_security_group.nsg-vm.name
+  
 }
 
 
@@ -107,7 +108,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
   network_interface_ids = [
     azurerm_network_interface.nic[count.index].id,
   ]
-  
+  proximity_placement_group_id = var.proximity_placement_group_id
   admin_ssh_key {
     username   = "adminuser"
     # public_key = file("~/.ssh/my-key.pub")
@@ -128,6 +129,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
 
   custom_data = var.custom_data != null ? var.custom_data : null
   depends_on = [ azurerm_network_interface.nic ]
+
 }
 
 resource "azurerm_network_security_rule" "nsg-ssh-vm-rule" {
@@ -139,7 +141,7 @@ resource "azurerm_network_security_rule" "nsg-ssh-vm-rule" {
   protocol                    = "Tcp"
   source_port_range           = "*"
   destination_port_range      = "22"
-  source_address_prefix       = "*" #"${data.http.source_ip.response_body}/32"
+  source_address_prefix       = "*" 
   destination_address_prefix  = "*"
   resource_group_name         = var.resource_group_name
   network_security_group_name = azurerm_network_security_group.nsg-vm.name
