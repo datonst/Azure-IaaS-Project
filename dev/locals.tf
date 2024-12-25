@@ -1,6 +1,6 @@
 locals {
   aws_region = "us-east-1"
-  azure_region = "East Asia"
+  azure_region = ["East Asia", "Japan East"]
   prefix = "dev-bigteam"
   tags = {
     Environment = "dev"

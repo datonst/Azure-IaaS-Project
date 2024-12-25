@@ -1,6 +1,6 @@
 module "spoke_resource_group" {
   source   = "../modules/azure/resource-group"
-  location = local.azure_region
+  location = local.azure_region[1]
   name     = "${local.prefix}-spoke-rg"
 }
 
@@ -10,7 +10,7 @@ module "spoke_resource_group" {
 # module "nat_gateway" {
 #   source                  = "../modules/azure/nat-gateway"
 #   nat_gateway_name        = "${local.prefix}-nat"
-#   location                = local.azure_region
+#   location                = local.azure_region[0]
 #   resource_group_name     = module.spoke_resource_group.name
 #   sku_name                = "Standard"
 #   idle_timeout_in_minutes = 10
@@ -19,7 +19,7 @@ module "spoke_resource_group" {
 module "spoke_vnet" {
   source = "../modules/azure/vnet"
 
-  location            = local.azure_region
+  location            = module.spoke_resource_group.location
   vnet_name           = "${local.prefix}-spoke-vnet"
   vnet_cidr           = ["172.17.0.0/16"]
   resource_group_name = module.spoke_resource_group.name
@@ -50,7 +50,7 @@ module "spoke_vnet" {
 # module "appgw" {
 #   source = "../modules/regional/application-gateway"
 
-#   location            = local.azure_region
+#   location            = local.azure_region[0]
 #   appgw_name            = "${local.prefix}-appgw"
 #   resource_group_name = module.resource_group.name
 #   subnet_id           = module.spoke_vnet.subnets["${local.prefix}-nat-subnet"].resource_id
@@ -76,14 +76,14 @@ module "spoke_vnet" {
 ##################### HUB AZURE ############################
 module "hub_resource_group" {
   source   = "../modules/azure/resource-group"
-  location = local.azure_region
+  location = local.azure_region[0]
   name     = "${local.prefix}-hub-rg"
 }
 
 module "hub_vnet" {
   source = "../modules/azure/vnet"
 
-  location            = local.azure_region
+  location            = module.hub_resource_group.location
   vnet_name           = "${local.prefix}-hub-vnet"
   vnet_cidr           = local.azure_hub_vnet_cidr
   resource_group_name = module.hub_resource_group.name
@@ -188,8 +188,8 @@ module "hub_vnet" {
 module "lb" {
   name = "lb"
   source = "../modules/azure/loadbalancer"
-  location = local.azure_region
-  resource_group_name = module.hub_resource_group.name
+  location = module.spoke_resource_group.location
+  resource_group_name = module.spoke_resource_group.name
   associate_public_ip_address = true
   subnet_id = module.spoke_vnet.subnets["${local.prefix}-lb-subnet"].resource_id
   lb_rules = [
@@ -210,7 +210,7 @@ module "lb" {
 
 # module "azure_firewall" {
 #   source = "../modules/azure/firewall"
-#   location = local.azure_region
+#   location = module.hub_resource_group.location
 #   resource_group_name =  module.hub_resource_group.name
 #   subnet_id = module.hub_vnet.subnets["AzureFirewallSubnet"].resource_id
 #   frontend_ip_configuration = module.loadbalancer.azurerm_lb.frontend_ip_configuration
@@ -225,7 +225,7 @@ module "lb" {
 #   source              = "../modules/azure/vm"
 #   name                = "hub-vm"
 #   subnet_id           = module.hub_vnet.subnets["test-subnet"].resource_id
-#   location            = local.azure_region
+#   location            = local.azure_region[1]
 #   resource_group_name = module.hub_resource_group.name
 #   number_of_vm        = 1
 #   public_key = tls_private_key.key_pair.public_key_openssh
@@ -239,7 +239,7 @@ module "backend_vm" {
   source              = "../modules/azure/vm"
   name                = "backend-vm"
   subnet_id           = module.spoke_vnet.subnets["${local.prefix}-private-subnet"].resource_id
-  location            = local.azure_region
+  location            = module.spoke_resource_group.location
   resource_group_name = module.spoke_resource_group.name
   number_of_vm        = 1
   public_key = tls_private_key.key_pair.public_key_openssh
@@ -250,7 +250,7 @@ module "frontend_vm" {
   name = "frontend-vm"
   source              = "../modules/azure/vm"
   subnet_id           = module.spoke_vnet.subnets["${local.prefix}-public-subnet"].resource_id
-  location            = local.azure_region
+  location            = module.spoke_resource_group.location
   resource_group_name = module.spoke_resource_group.name
   number_of_vm        = 1
   public_key = tls_private_key.key_pair.public_key_openssh
@@ -295,7 +295,7 @@ resource "azurerm_network_security_rule" "allow-frontend-port" {
 module "internal_lb" {
   name = "internal"
   source = "../modules/azure/loadbalancer"
-  location = local.azure_region
+  location = module.spoke_resource_group.location
   resource_group_name = module.spoke_resource_group.name
   associate_public_ip_address = false
   subnet_id = module.spoke_vnet.subnets["${local.prefix}-lb-subnet"].resource_id
